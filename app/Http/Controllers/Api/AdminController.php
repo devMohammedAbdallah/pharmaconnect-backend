@@ -19,9 +19,9 @@ class AdminController extends Controller
             'data' => [
                 'total_pharmacies'      => Pharmacy::count(),
                 'total_medicines'       => Medicine::count(),
-                'total_users'           => User::where('role', '=', 'patient')->count(),
-                'available_medicines'   => Medicine::where('is_available', '=', true)->count(),
-                'unavailable_medicines' => Medicine::where('is_available', '=', false)->count(),
+                'total_users'           => User::query()->where('role', '=', 'patient')->count(),
+                'available_medicines'   => Medicine::query()->where('is_available', '=', true)->count(),
+                'unavailable_medicines' => Medicine::query()->where('is_unavailable', '=', false)->count(),
             ]
         ]);
     }
@@ -29,13 +29,13 @@ class AdminController extends Controller
     // تقارير وشارتات
     public function reports()
     {
-        $medicinesPerCategory = Medicine::selectRaw('category, count(*) as total')
+        $medicinesPerCategory = Medicine::selectRaw('category, count(*) as total', [])
             ->groupBy('category')
             ->get();
 
         $availabilityRatio = [
-            'available'   => Medicine::where('is_available', true)->count(),
-            'unavailable' => Medicine::where('is_available', false)->count(),
+            'available'   => Medicine::query()->where('is_available', '=', true)->count(),
+            'unavailable' => Medicine::query()->where('is_available', '=', false)->count(),
         ];
 
         return response()->json([
