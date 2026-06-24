@@ -1,2 +1,2 @@
-web: composer start
+
 

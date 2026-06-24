@@ -34,7 +34,6 @@
         }
     },
     "scripts": {
-          "start": "php artisan serve --host=0.0.0.0 --port=$PORT",
         "setup": [
             "composer install",
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
