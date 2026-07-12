@@ -22,6 +22,7 @@ Route::get('/pharmacies/{id}', [PharmacyController::class, 'show']);
 
 // للصيدلاني - محمي
 Route::middleware(['auth:sanctum', 'role:pharmacist'])->group(function () {
+    Route::get('/pharmacist/medicines', [MedicineController::class, 'myMedicines']);
     Route::post('/medicines', [MedicineController::class, 'store']);
     Route::put('/medicines/{id}', [MedicineController::class, 'update']);
     Route::delete('/medicines/{id}', [MedicineController::class, 'destroy']);

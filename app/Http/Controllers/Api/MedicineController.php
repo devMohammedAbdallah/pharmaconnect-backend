@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 
 class MedicineController extends Controller
 {
-    // جلب الأدوية مع البحث والفلتر
+    // جلب الأدوية مع البحث والفلتر (عام - لكل المرضى)
     public function index(Request $request)
     {
         $query = Medicine::with('pharmacies');
@@ -28,6 +28,23 @@ class MedicineController extends Controller
 
         return response()->json([
             'data' => $query->get()
+        ]);
+    }
+
+    // جلب أدوية الصيدلاني الحالي فقط
+    public function myMedicines(Request $request)
+    {
+        $pharmacyId = $request->user()->pharmacy_id;
+
+        $medicines = Medicine::whereHas('pharmacies', function ($query) use ($pharmacyId) {
+            $query->where('pharmacy_id', $pharmacyId);
+        })->with(['pharmacies' => function ($query) use ($pharmacyId) {
+            $query->where('pharmacy_id', $pharmacyId)
+                  ->withPivot('stock', 'stock_status');
+        }])->get();
+
+        return response()->json([
+            'data' => $medicines
         ]);
     }
 
@@ -62,10 +79,15 @@ class MedicineController extends Controller
         ], 201);
     }
 
-    // تعديل دواء
+    // تعديل دواء (بس تبع صيدلية الصيدلاني)
     public function update(Request $request, $id)
     {
         $medicine = Medicine::findOrFail($id);
+        $pharmacyId = $request->user()->pharmacy_id;
+
+        if (!$medicine->pharmacies()->where('pharmacy_id', $pharmacyId)->exists()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
 
         $request->validate([
             'name'         => 'sometimes|string|unique:medicines,name,' . $id,
@@ -76,6 +98,13 @@ class MedicineController extends Controller
         ]);
 
         $medicine->update($request->all());
+
+        // حدّث الـ stock بالـ pivot الخاص بهاي الصيدلية كمان
+        if ($request->has('stock')) {
+            $medicine->pharmacies()->updateExistingPivot($pharmacyId, [
+                'stock' => $request->stock,
+            ]);
+        }
 
         ActivityLog::create([
             'user_id'     => $request->user()->id,
@@ -90,10 +119,15 @@ class MedicineController extends Controller
         ]);
     }
 
-    // حذف دواء
+    // حذف دواء (بس العلاقة تبع صيدلية الصيدلاني)
     public function destroy(Request $request, $id)
     {
         $medicine = Medicine::findOrFail($id);
+        $pharmacyId = $request->user()->pharmacy_id;
+
+        if (!$medicine->pharmacies()->where('pharmacy_id', $pharmacyId)->exists()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
 
         ActivityLog::create([
             'user_id'     => $request->user()->id,
@@ -102,17 +136,26 @@ class MedicineController extends Controller
             'target_name' => $medicine->name,
         ]);
 
-        $medicine->delete();
+        $medicine->pharmacies()->detach($pharmacyId);
+
+        if ($medicine->pharmacies()->count() === 0) {
+            $medicine->delete();
+        }
 
         return response()->json([
             'message' => 'Medicine deleted successfully'
         ]);
     }
 
-    // تغيير حالة التوفر
+    // تغيير حالة التوفر (بس تبع صيدلية الصيدلاني)
     public function updateAvailability(Request $request, $id)
     {
         $medicine = Medicine::findOrFail($id);
+        $pharmacyId = $request->user()->pharmacy_id;
+
+        if (!$medicine->pharmacies()->where('pharmacy_id', $pharmacyId)->exists()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
 
         $request->validate([
             'is_available' => 'required|boolean',
@@ -122,7 +165,7 @@ class MedicineController extends Controller
             'is_available' => $request->is_available
         ]);
 
-        $medicine->pharmacies()->updateExistingPivot($request->user()->pharmacy_id, [
+        $medicine->pharmacies()->updateExistingPivot($pharmacyId, [
             'stock_status' => $request->is_available
         ]);
 
@@ -138,4 +181,4 @@ class MedicineController extends Controller
             'data'    => $medicine
         ]);
     }
-}
+};
