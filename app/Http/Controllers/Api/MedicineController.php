@@ -79,15 +79,10 @@ class MedicineController extends Controller
         ], 201);
     }
 
-    // تعديل دواء (بس تبع صيدلية الصيدلاني)
+    // تعديل دواء
     public function update(Request $request, $id)
     {
         $medicine = Medicine::findOrFail($id);
-        $pharmacyId = $request->user()->pharmacy_id;
-
-        if (!$medicine->pharmacies()->where('pharmacy_id', $pharmacyId)->exists()) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
 
         $request->validate([
             'name'         => 'sometimes|string|unique:medicines,name,' . $id,
@@ -99,11 +94,14 @@ class MedicineController extends Controller
 
         $medicine->update($request->all());
 
-        // حدّث الـ stock بالـ pivot الخاص بهاي الصيدلية كمان
+        // حدّث الـ stock بالـ pivot الخاص بصيدلية الصيدلاني (لو مرتبط فيها)
         if ($request->has('stock')) {
-            $medicine->pharmacies()->updateExistingPivot($pharmacyId, [
-                'stock' => $request->stock,
-            ]);
+            $pharmacyId = $request->user()->pharmacy_id;
+            if ($medicine->pharmacies()->where('pharmacy_id', $pharmacyId)->exists()) {
+                $medicine->pharmacies()->updateExistingPivot($pharmacyId, [
+                    'stock' => $request->stock,
+                ]);
+            }
         }
 
         ActivityLog::create([
@@ -119,15 +117,10 @@ class MedicineController extends Controller
         ]);
     }
 
-    // حذف دواء (بس العلاقة تبع صيدلية الصيدلاني)
+    // حذف دواء
     public function destroy(Request $request, $id)
     {
         $medicine = Medicine::findOrFail($id);
-        $pharmacyId = $request->user()->pharmacy_id;
-
-        if (!$medicine->pharmacies()->where('pharmacy_id', $pharmacyId)->exists()) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
 
         ActivityLog::create([
             'user_id'     => $request->user()->id,
@@ -136,26 +129,17 @@ class MedicineController extends Controller
             'target_name' => $medicine->name,
         ]);
 
-        $medicine->pharmacies()->detach($pharmacyId);
-
-        if ($medicine->pharmacies()->count() === 0) {
-            $medicine->delete();
-        }
+        $medicine->delete();
 
         return response()->json([
             'message' => 'Medicine deleted successfully'
         ]);
     }
 
-    // تغيير حالة التوفر (بس تبع صيدلية الصيدلاني)
+    // تغيير حالة التوفر
     public function updateAvailability(Request $request, $id)
     {
         $medicine = Medicine::findOrFail($id);
-        $pharmacyId = $request->user()->pharmacy_id;
-
-        if (!$medicine->pharmacies()->where('pharmacy_id', $pharmacyId)->exists()) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
 
         $request->validate([
             'is_available' => 'required|boolean',
@@ -165,9 +149,12 @@ class MedicineController extends Controller
             'is_available' => $request->is_available
         ]);
 
-        $medicine->pharmacies()->updateExistingPivot($pharmacyId, [
-            'stock_status' => $request->is_available
-        ]);
+        $pharmacyId = $request->user()->pharmacy_id;
+        if ($medicine->pharmacies()->where('pharmacy_id', $pharmacyId)->exists()) {
+            $medicine->pharmacies()->updateExistingPivot($pharmacyId, [
+                'stock_status' => $request->is_available
+            ]);
+        }
 
         ActivityLog::create([
             'user_id'     => $request->user()->id,
@@ -181,4 +168,4 @@ class MedicineController extends Controller
             'data'    => $medicine
         ]);
     }
-};
+}
