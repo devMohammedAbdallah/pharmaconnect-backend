@@ -40,27 +40,39 @@ class PharmacyController extends Controller
     // تعديل بروفايل الصيدلية
     public function update(Request $request)
     {
-        $pharmacy = Pharmacy::findOrFail($request->user()->pharmacy_id);
+    $request->validate([
+        'name'          => 'sometimes|string',
+        'location'      => 'sometimes|string',
+        'phone'         => 'sometimes|string',
+        'working_hours' => 'nullable|string',
+    ]);
 
-        $request->validate([
-            'name'          => 'sometimes|string',
-            'location'      => 'sometimes|string',
-            'phone'         => 'sometimes|string',
-            'working_hours' => 'nullable|string',
+    $user = $request->user();
+
+    if (!$user->pharmacy_id) {
+        // أنشئ صيدلية جديدة له لو ما كان عنده
+        $pharmacy = Pharmacy::create([
+            'name'          => $request->name ?? 'صيدلية جديدة',
+            'location'      => $request->location ?? '',
+            'phone'         => $request->phone ?? '',
+            'working_hours' => $request->working_hours ?? null,
         ]);
-
+        $user->update(['pharmacy_id' => $pharmacy->id]);
+    } else {
+        $pharmacy = Pharmacy::findOrFail($user->pharmacy_id);
         $pharmacy->update($request->all());
-
-        ActivityLog::create([
-            'user_id'     => $request->user()->id,
-            'action'      => 'updated',
-            'target_type' => 'pharmacy',
-            'target_name' => $pharmacy->name,
-        ]);
-
-        return response()->json([
-            'message' => 'Pharmacy updated successfully',
-            'data'    => $pharmacy
-        ]);
     }
+
+    ActivityLog::create([
+        'user_id'     => $user->id,
+        'action'      => 'updated',
+        'target_type' => 'pharmacy',
+        'target_name' => $pharmacy->name,
+    ]);
+
+    return response()->json([
+        'message' => 'Pharmacy updated successfully',
+        'data'    => $pharmacy
+    ]);
+  }
 }
